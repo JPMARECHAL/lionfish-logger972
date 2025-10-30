@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lionfish Logger</title>
+  <meta name="theme-color" content="#0a9396"/>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@2/css/pico.min.css">
+  <style>
+    :root { --pico-font-size: 100%; }
+    header { position: sticky; top: 0; backdrop-filter: blur(6px); background: rgba(255,255,255,.7); border-bottom: 1px solid #e6e6e6; }
+    .card { border: 1px solid #e6e6e6; border-radius: 12px; padding: 1rem; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
+    .chip { border: 1px solid #e6e6e6; border-radius: 999px; padding: .25rem .6rem; font-size: .85rem; }
+    .counter { display:flex; align-items:center; gap:.4rem; }
+    .counter button { width: 2rem; }
+    .muted { color: #6b7280; font-size: .9rem; }
+    .small { font-size: .85rem; }
+    .footer-space { height: 10vh; }
+    .hidden { display: none; }
+    .badge { background: #e6f4f1; color: #0a9396; border-radius: 999px; padding: .2rem .6rem; font-weight: 600; }
+    nav.tabs { display:flex; gap:.5rem; }
+    nav.tabs button[aria-selected="true"] { background: #0a9396; color: #fff; }
+    .kpi { text-align:center; border: 1px solid #e6e6e6; border-radius: 12px; padding:.8rem; }
+    .kpi .val { font-size: 1.4rem; font-weight: 700; }
+    .bar { background:#e6e6e6; height: 8px; border-radius: 6px; overflow:hidden; }
+    .bar > span { display:block; height:100%; background:#0a9396; }
+  </style>
+</head>
+<body>
+<header class="container">
+  <nav>
+    <ul>
+      <li><strong>🦁🐟 Lionfish Logger</strong></li>
+    </ul>
+    <ul>
+      <li><span class="badge" id="offlineBadge">Offline‑ready</span></li>
+    </ul>
+  </nav>
+</header>
+
+<main class="container">
+  <nav class="tabs">
+    <button id="tab-log" aria-selected="true">Saisie</button>
+    <button id="tab-dash">Tableau</button>
+    <button id="tab-export">Export</button>
+    <button id="tab-settings">Paramètres</button>
+  </nav>
+
+  <!-- Saisie -->
+  <section id="view-log">
+    <article class="card">
+      <h3>Nouvelle saisie</h3>
+      <div class="grid-2">
+        <div class="grid-2" style="grid-template-columns: 2fr 3fr; grid-column: 1 / -1;">
+          <label>Site
+            <input list="siteList" id="site" placeholder="Choisir ou saisir">
+            <datalist id="siteList"></datalist>
+          </label>
+          <label>Date / heure
+            <input type="datetime-local" id="timestamp">
+          </label>
+        </div>
+
+        <label>Méthode
+          <select id="method">
+            <option value="scuba">scuba</option>
+            <option value="freedive">freedive</option>
+            <option value="tech">tech</option>
+          </select>
+        </label>
+        <label>Profondeur
+          <select id="depthBand">
+            <option>0-10</option>
+            <option selected>10-20</option>
+            <option>20-30</option>
+            <option>30-40</option>
+            <option>40-60</option>
+            <option>>60</option>
+          </select>
+        </label>
+
+        <label>Nb plongeurs
+          <input type="number" id="divers" min="1" value="2">
+        </label>
+        <label>Temps fond (min)
+          <input type="number" id="bottomTimeMin" min="0" value="60">
+        </label>
+
+        <div style="grid-column: 1 / -1;">
+          <label>Position <span class="muted small">(<button class="secondary small" id="gpsBtn" type="button">GPS</button>)</span>
+            <input id="latlon" placeholder="lat, lon" readonly>
+          </label>
+        </div>
+
+        <div style="grid-column: 1 / -1;">
+          <label>Classes de taille (cm)</label>
+          <div class="grid-3" id="sizeCounters"></div>
+        </div>
+
+        <label style="grid-column: 1 / -1;">Notes
+          <textarea id="notes" rows="2" placeholder="Observations, incidents…"></textarea>
+        </label>
+
+        <div class="grid-2" style="grid-column: 1 / -1;">
+          <div> Total : <strong id="total">0</strong> — CPUE : <strong id="cpue">0.00</strong> ind / plongeur‑heure</div>
+          <div class="grid-2">
+            <button class="secondary" id="resetBtn" type="button">Réinitialiser</button>
+            <button id="saveBtn" type="button">Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <h3>Dernières saisies</h3>
+      <div id="entries"></div>
+    </article>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="view-dash" class="hidden">
+    <article class="card">
+      <h3>Tableau de bord</h3>
+      <div class="grid-3">
+        <div class="kpi"><div class="small muted">Total aujourd’hui</div><div class="val" id="kpiToday">0</div></div>
+        <div class="kpi"><div class="small muted">Nb saisies</div><div class="val" id="kpiCount">0</div></div>
+        <div class="kpi"><div class="small muted">CPUE moyenne</div><div class="val" id="kpiCpue">0.00</div></div>
+      </div>
+      <details class="small" style="margin-top: .75rem;">
+        <summary>Distribution actuelle des tailles</summary>
+        <div id="sizeBars" style="margin-top:.5rem;"></div>
+      </details>
+    </article>
+  </section>
+
+  <!-- Export -->
+  <section id="view-export" class="hidden">
+    <article class="card">
+      <h3>Export & synchronisation</h3>
+      <div class="grid-3">
+        <button id="exportCsv">Export CSV</button>
+        <button class="secondary" id="exportJson">Export JSON</button>
+        <button class="contrast" id="syncBtn">Synchroniser (POST JSON)</button>
+      </div>
+      <p class="muted small" id="queueHint"></p>
+    </article>
+  </section>
+
+  <!-- Settings -->
+  <section id="view-settings" class="hidden">
+    <article class="card">
+      <h3>Paramètres</h3>
+      <div class="grid-2">
+        <label>Club <input id="club"></label>
+        <label>Équipe <input id="team"></label>
+        <label>Webhook URL (Google Apps Script / API) <input id="webhookUrl" placeholder="https://…"></label>
+        <label>GPS automatique <select id="autoGps"><option value="false">Non</option><option value="true">Oui</option></select></label>
+        <label>Sites (un par ligne)<textarea id="sites" rows="6"></textarea></label>
+      </div>
+    </article>
+  </section>
+
+  <div class="footer-space"></div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
